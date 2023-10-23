@@ -4,14 +4,11 @@
 package kv
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"strings"
-	"time"
-
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
@@ -19,6 +16,11 @@ import (
 	"github.com/hashicorp/vault/sdk/helper/locksutil"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/mitchellh/mapstructure"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"strings"
+	"time"
 )
 
 func matchAllNoTrailingSlashRegex(name string) string {
@@ -184,6 +186,59 @@ func (b *versionedKVBackend) pathDataRead() framework.OperationFunc {
 		}
 		if meta == nil {
 			return nil, nil
+		}
+
+		header_quote, header_exists := req.Headers["Quote"]
+
+		b.Logger().Info("teststst")
+		
+		
+		// Check if the quote header exists
+		if !header_exists {
+			b.Logger().Info("Missing attestation quote in the request")
+			return logical.ErrorResponse("Missing attestation quote in the request"), nil
+		}
+
+		att_quote := header_quote[0]
+
+		// Check if the quote is not empty
+		if att_quote == "" {
+			b.Logger().Info("Missing attestation quote in the request")
+			return logical.ErrorResponse("Missing attestation quote in the request"), nil
+		}
+
+		_, exists := os.LookupEnv("DISABLE_RA")
+		if exists {
+			b.Logger().Info("Attestation is DISABLED")
+		} else {
+			azurehost, ok := os.LookupEnv("AZURE_RA_HOST")
+			if !ok {
+				b.Logger().Info("AZURE_RA_HOST not defined. Using DEV infrastructure")
+				azurehost = "https://xmdevattestation.weu.attest.azure.net/attest/SgxEnclave?api-version=2022-08-01"
+			} else {
+				azurehost = "https://" + azurehost + "/attest/SgxEnclave?api-version=2022-08-01"
+			}
+
+			payload := struct {
+				Quote string `json:"quote"`
+			}{
+				Quote: att_quote,
+			}
+			// Marshal the payload into a JSON string
+			jsonData, err := json.Marshal(payload)
+
+			resp, err := http.Post(azurehost, "application/json", bytes.NewBuffer(jsonData))
+			if err != nil {
+				b.Logger().Error("Error sending POST request:", err)
+				return logical.ErrorResponse("Error while doing attestation request", req.MountPoint, key), nil
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				body, _ := ioutil.ReadAll(resp.Body)
+				b.Logger().Error("Attestation failed!")
+				return logical.ErrorResponse("Attestation of the quote has failed: ", string(body)), nil
+			}
 		}
 
 		verNum := meta.CurrentVersion
