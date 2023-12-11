@@ -188,10 +188,7 @@ func (b *versionedKVBackend) pathDataRead() framework.OperationFunc {
 			return nil, nil
 		}
 
-		header_quote, header_exists := req.Headers["Quote"]
-
-		b.Logger().Info("teststst")
-		
+		header_quote, header_exists := req.Headers["Quote"]		
 		
 		// Check if the quote header exists
 		if !header_exists {
