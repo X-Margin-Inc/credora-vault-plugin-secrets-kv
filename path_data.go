@@ -191,6 +191,8 @@ func (b *versionedKVBackend) pathDataRead() framework.OperationFunc {
 
 
 		//Needed for returnig the attestation quote to XTS
+		b.Logger().Info("Before Quote ", req.MountPoint, key)
+
 		if strings.Contains(key, "quote") {
 			// Try to open the device path
 			content, err := ioutil.ReadFile("/dev/attestation/quote")
