@@ -181,18 +181,6 @@ func (b *versionedKVBackend) pathDataRead() framework.OperationFunc {
 		lock.RLock()
 		defer lock.RUnlock()
 
-		meta, err := b.getKeyMetadata(ctx, req.Storage, key)
-		if err != nil {
-			return nil, err
-		}
-		if meta == nil {
-			return nil, nil
-		}
-
-
-		//Needed for returnig the attestation quote to XTS
-		b.Logger().Info("Before Quote ", req.MountPoint, key)
-
 		if strings.Contains(key, "quote") {
 			// Try to open the device path
 			content, err := ioutil.ReadFile("/dev/attestation/quote")
@@ -210,7 +198,15 @@ func (b *versionedKVBackend) pathDataRead() framework.OperationFunc {
 				}
 				return logical.RespondWithStatusCode(resp, req, http.StatusOK)
 			}
-	    	}
+		}
+		
+		meta, err := b.getKeyMetadata(ctx, req.Storage, key)
+		if err != nil {
+			return nil, err
+		}
+		if meta == nil {
+			return nil, nil
+		}
 		
 		header_quote, header_exists := req.Headers["Quote"]		
 		
