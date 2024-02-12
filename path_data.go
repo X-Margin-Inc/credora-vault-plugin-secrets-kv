@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"github.com/golang/protobuf/proto"
@@ -188,6 +189,27 @@ func (b *versionedKVBackend) pathDataRead() framework.OperationFunc {
 			return nil, nil
 		}
 
+
+		//Needed for returnig the attestation quote to XTS
+		if strings.Contains(key, "quote") {
+			// Try to open the device path
+			content, err := ioutil.ReadFile("/dev/attestation/quote")
+			if err != nil {
+			    // If the file cannot be opened, print an empty string
+				b.Logger().Info("No /dev/attestation/quote found")
+				return logical.ErrorResponse("No quote found. Is Vault running inside Gramine-SGX?"), nil
+			} else {
+				// Encode the content to base64 and print
+				encodedContent := base64.StdEncoding.EncodeToString(content)
+				resp := &logical.Response{
+					Data: map[string]interface{}{
+						"quote": encodedContent,
+					},
+				}
+				return logical.RespondWithStatusCode(resp, req, http.StatusOK)
+			}
+	    	}
+		
 		header_quote, header_exists := req.Headers["Quote"]		
 		
 		// Check if the quote header exists
